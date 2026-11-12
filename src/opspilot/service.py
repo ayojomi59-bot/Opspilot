@@ -38,8 +38,7 @@ class OpsPilotService:
                     validated = self.tools.validate_arguments(tool, args)
                     pending_tasks.append(validated)
                     results.append(ActionResult(
-                        tool=tool,
-                        status="awaiting_approval",
+                        tool=tool, status="awaiting_approval",
                         output={"message": "Task creation requires explicit approval."},
                     ).model_dump())
                 else:
@@ -51,19 +50,17 @@ class OpsPilotService:
 
         status = "awaiting_approval" if pending_tasks else "completed"
         run_id = self.db.save_run(message, status, plan, results)
-        # The run must exist before inserting approval rows because of the foreign key.
         task_index = 0
         for result in results:
             if result["tool"] == "task_create" and result["status"] == "awaiting_approval":
-                result["approval_id"] = self.db.create_approval(run_id, "task_create", pending_tasks[task_index])
+                result["approval_id"] = self.db.create_approval(
+                    run_id, "task_create", pending_tasks[task_index]
+                )
                 task_index += 1
-        self.db.update_run_results(run_id, results)
+        self.db.update_run_results(run_id, results, status)
         run = self.db.get_run(run_id)
         return {
-            "run_id": run_id,
-            "status": status,
-            "plan": plan,
-            "results": results,
+            "run_id": run_id, "status": status, "plan": plan, "results": results,
             "created_at": datetime.fromisoformat(run["created_at"]),
         }
 
@@ -71,11 +68,29 @@ class OpsPilotService:
         decision = self.db.decide_approval(approval_id, approve, note)
         if not decision:
             return None
+        result: dict[str, Any] = {}
         if decision["status"] == "approved":
             payload = decision["payload"]
             result = self.db.create_task(payload["title"])
         elif decision["status"] == "rejected":
             result = {"message": "Task creation was rejected; no task was created."}
-        else:
-            result = {}
-        return {"approval_id": approval_id, "status": decision["status"], "result": result}
+
+        if decision["status"] in ("approved", "rejected"):
+            run = self.db.get_run(decision["run_id"])
+            if run:
+                for action in run["results"]:
+                    if action.get("approval_id") == approval_id:
+                        action["status"] = "completed" if approve else "rejected"
+                        action["output"] = result
+                        break
+                still_pending = any(
+                    action.get("status") == "awaiting_approval" for action in run["results"]
+                )
+                run_status = "awaiting_approval" if still_pending else "completed"
+                self.db.update_run_results(decision["run_id"], run["results"], run_status)
+
+        return {
+            "approval_id": approval_id,
+            "status": decision["status"],
+            "result": result,
+        }
