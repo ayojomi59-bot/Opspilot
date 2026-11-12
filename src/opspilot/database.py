@@ -52,10 +52,6 @@ class Database:
                        (run_id, message, status, json.dumps(plan), json.dumps(results), self.now()))
         return run_id
 
-    def update_run_results(self, run_id: str, results: list[dict[str, Any]]) -> None:
-        with self.connect() as db:
-            db.execute("UPDATE runs SET results=? WHERE id=?", (json.dumps(results), run_id))
-
     def update_run_results(self, run_id: str, results: list[dict[str, Any]], status: str | None = None) -> None:
         with self.connect() as db:
             if status is None:
