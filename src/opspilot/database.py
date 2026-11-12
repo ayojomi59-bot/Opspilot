@@ -56,6 +56,13 @@ class Database:
         with self.connect() as db:
             db.execute("UPDATE runs SET results=? WHERE id=?", (json.dumps(results), run_id))
 
+    def update_run_results(self, run_id: str, results: list[dict[str, Any]], status: str | None = None) -> None:
+        with self.connect() as db:
+            if status is None:
+                db.execute("UPDATE runs SET results=? WHERE id=?", (json.dumps(results), run_id))
+            else:
+                db.execute("UPDATE runs SET results=?, status=? WHERE id=?", (json.dumps(results), status, run_id))
+
     def get_run(self, run_id: str):
         with self.connect() as db:
             row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
