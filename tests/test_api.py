@@ -54,7 +54,7 @@ def test_rejected_task_is_not_created(tmp_path):
 def test_email_is_never_sent(tmp_path):
     c = client(tmp_path)
     response = c.post("/api/v1/runs", json={"message": "Draft an email to the customer"})
-    result = response.json()["results"][0]
+    result = next(item for item in response.json()["results"] if item["tool"] == "email_draft")
     assert result["tool"] == "email_draft"
     assert result["output"]["sent"] is False
     assert result["output"]["status"] == "draft_only"
