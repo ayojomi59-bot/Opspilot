@@ -39,6 +39,8 @@ def test_task_requires_approval_then_creates_task(tmp_path):
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     assert approved.json()["result"]["status"] == "open"
+    run_id = response.json()["run_id"]
+    assert c.get(f"/api/v1/runs/{run_id}").json()["status"] == "completed"
 
 
 def test_rejected_task_is_not_created(tmp_path):
@@ -49,6 +51,8 @@ def test_rejected_task_is_not_created(tmp_path):
     assert rejected.status_code == 200
     assert rejected.json()["status"] == "rejected"
     assert "rejected" in rejected.json()["result"]["message"]
+    run_id = response.json()["run_id"]
+    assert c.get(f"/api/v1/runs/{run_id}").json()["status"] == "completed"
 
 
 def test_email_is_never_sent(tmp_path):
